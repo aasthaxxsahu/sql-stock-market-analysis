@@ -1,0 +1,6 @@
+streamlit
+pandas
+plotly
+streamlit-option-menu
+fpdf2
+pysqlite3-binary
