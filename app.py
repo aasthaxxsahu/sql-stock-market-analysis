@@ -6,24 +6,35 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from streamlit_option_menu import option_menu
 
-# Auto-build stocks.db on first run (needed for cloud deployment)
-if not os.path.exists("stocks.db"):
-    try:
-        import subprocess
-        subprocess.run(["python", "load_to_sqlite.py"], check=True)
-    except Exception as e:
-        st.error(f"Could not build database: {e}")
+def ensure_database():
+    """Build stocks.db from CSVs on first run."""
+    if os.path.exists("stocks.db"):
+        return
+    
+    FILES = {
+        "bajaj_auto":    "Bajaj Auto.csv",
+        "eicher_motors": "Eicher Motors.csv",
+        "hero_motocorp": "Hero Motocorp.csv",
+        "infosys":       "Infosys.csv",
+        "tcs":           "TCS.csv",
+        "tvs_motors":    "TVS Motors.csv",
+    }
+    COLS = ["date", "open_price", "high_price", "low_price", "close_price",
+            "wap", "no_of_shares", "no_of_trades", "total_turnover",
+            "deliverable_qty", "pct_deli_qty", "spread_high_low",
+            "spread_close_open"]
+    
+    conn = sqlite3.connect("stocks.db")
+    for table, fname in FILES.items():
+        df = pd.read_csv(fname)
+        df["Date"] = pd.to_datetime(df["Date"], format="%d-%B-%Y").dt.strftime("%Y-%m-%d")
+        df.columns = COLS
+        df.to_sql(table, conn, if_exists="replace", index=False)
+        conn.execute(f"CREATE UNIQUE INDEX IF NOT EXISTS idx_{table}_date ON {table}(date)")
+        conn.commit()
+    conn.close()
 
-# ============================================================
-# PAGE CONFIG
-# ============================================================
-st.set_page_config(
-    page_title="Stock Analytics Dashboard",
-    page_icon="📈",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
+ensure_database()
 # ============================================================
 # CUSTOM CSS — the magic that makes it beautiful
 # ============================================================
