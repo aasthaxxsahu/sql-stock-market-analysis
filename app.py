@@ -1,16 +1,30 @@
 import streamlit as st
 import sqlite3
-import pandas as pd
 import os
+import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from streamlit_option_menu import option_menu
 
+# ---------- Absolute paths (work on Windows AND Streamlit Cloud) ----------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH  = os.path.join(BASE_DIR, "stocks.db")
+
 def ensure_database():
-    """Build stocks.db from CSVs on first run."""
-    if os.path.exists("stocks.db"):
-        return
-    
+    """Build stocks.db from CSVs if missing or empty."""
+    # If DB exists AND has real tables, skip rebuild
+    if os.path.exists(DB_PATH):
+        try:
+            check = sqlite3.connect(DB_PATH)
+            check.execute("SELECT COUNT(*) FROM bajaj_auto").fetchone()
+            check.close()
+            return
+        except Exception:
+            try:
+                os.remove(DB_PATH)
+            except OSError:
+                pass
+
     FILES = {
         "bajaj_auto":    "Bajaj Auto.csv",
         "eicher_motors": "Eicher Motors.csv",
@@ -23,10 +37,11 @@ def ensure_database():
             "wap", "no_of_shares", "no_of_trades", "total_turnover",
             "deliverable_qty", "pct_deli_qty", "spread_high_low",
             "spread_close_open"]
-    
-    conn = sqlite3.connect("stocks.db")
+
+    conn = sqlite3.connect(DB_PATH)
     for table, fname in FILES.items():
-        df = pd.read_csv(fname)
+        csv_path = os.path.join(BASE_DIR, fname)
+        df = pd.read_csv(csv_path)
         df["Date"] = pd.to_datetime(df["Date"], format="%d-%B-%Y").dt.strftime("%Y-%m-%d")
         df.columns = COLS
         df.to_sql(table, conn, if_exists="replace", index=False)
@@ -34,7 +49,11 @@ def ensure_database():
         conn.commit()
     conn.close()
 
+# Clear stale cache from earlier broken builds, then ensure DB exists
+st.cache_data.clear()
 ensure_database()
+
+DB = DB_PATH   # ← use the absolute path everywhere below
 # ============================================================
 # CUSTOM CSS — the magic that makes it beautiful
 # ============================================================
